@@ -30,7 +30,7 @@ Each folder maps to a phase of the analytics workflow:
 
 ### Dataset: UCI Online Retail
 - Source: https://archive.ics.uci.edu/static/public/352/online+retail.zip
-- Raw shape: ~541,909 rows × 8 columns
+- Raw shape: 541,909 rows x 8 columns
 - Format: Excel (.xlsx) → converted to CSV
 
 ### Cleaning decisions (and WHY each one matters)
@@ -40,12 +40,13 @@ Each folder maps to a phase of the analytics workflow:
 | Drop missing `CustomerID` | `df.dropna(subset=['CustomerID'])` | Can't track retention without knowing who bought. These rows are anonymous purchases — useless for cohort analysis. |
 | Remove cancellations | `~df['InvoiceNo'].str.startswith('C')` | Invoices prefixed with 'C' are returns/refunds. Including them would show negative revenue in some months — data corruption. |
 | Remove bad quantities | `df[(df['Quantity'] > 0) & (df['UnitPrice'] > 0)]` | Negative quantities = returns already captured. Zero prices = test entries or giveaways. Both corrupt revenue calculations. |
+| Currency Conversion | `df['UnitPrice'] * 105` | The target demographic analysis requires Indian context, so GBP was converted to INR at ~105 rate. |
 | Create `Revenue` column | `df['Quantity'] * df['UnitPrice']` | Raw data has no revenue column. We engineer it from the two atomic fields. This is called **feature engineering**. |
 | Parse `InvoiceDate` | `pd.to_datetime(df['InvoiceDate'])` | String dates can't be grouped by month/year or used in time-series. Converting to datetime unlocks `.dt` accessor. |
 | Extract `Month`, `Hour`, `DayOfWeek` | `.dt.to_period('M')`, `.dt.hour`, `.dt.day_name()` | These derived columns power the heatmap and monthly trend — we're decomposing a timestamp into its components. |
 
 ### Expected clean row count
-Starting ~541,909 → After cleaning: ~397,000–406,000 rows (exact number filled after running)
+Starting 541,909 → After cleaning: 397,884 rows.
 
 ---
 
@@ -54,11 +55,11 @@ Starting ~541,909 → After cleaning: ~397,000–406,000 rows (exact number fill
 ### Chart 1: Monthly Revenue Trend (dual-axis)
 **File**: `outputs/monthly_revenue.png`
 
-- Left Y-axis: Monthly revenue (£) as a filled line chart
+- Left Y-axis: Monthly revenue (INR) as a filled line chart
 - Right Y-axis: MoM Growth % as transparent bars (green = positive, red = negative)
 - Why dual-axis? Tells two stories on one chart — absolute revenue AND rate of change
 
-**Interview insight**: "November 20XX showed the highest MoM spike — this is consistent with UK Black Friday/holiday shopping behaviour. I would recommend the marketing team pre-position ad spend in October to capture this demand."
+**Interview insight**: "November 2011 showed the highest MoM spike — this is consistent with holiday shopping behaviour. I would recommend the marketing team pre-position ad spend in October to capture this demand."
 
 ### Chart 2: Top 10 Products by Revenue
 **File**: `outputs/top_products.png`
@@ -67,14 +68,14 @@ Starting ~541,909 → After cleaning: ~397,000–406,000 rows (exact number fill
 - Sorted descending — hero SKU is immediately visible
 - Revenue labels on each bar for instant reading
 
-**Interview insight**: "The top product contributed X% of total revenue. This concentration risk means we should develop complementary products or bundles to reduce dependency."
+**Interview insight**: "The top product contributed significantly to total revenue. This concentration risk means we should develop complementary products or bundles to reduce dependency."
 
 ### Chart 3: Revenue by Country (Interactive HTML)
 **File**: `outputs/country_revenue.html`
 
 - Plotly interactive — hover shows customers + orders + share %
 - Reveals that the UK dominates (expected for a UK retailer)
-- NETHERLANDS, GERMANY, FRANCE typically rank 2nd–4th
+- NETHERLANDS, EIRE, GERMANY rank 2nd–4th
 
 **Interview insight**: "85%+ revenue from one geography is a concentration risk. If UK demand softens, the business has limited diversification. I'd recommend testing localised marketing in top 3 European countries."
 
@@ -83,9 +84,9 @@ Starting ~541,909 → After cleaning: ~397,000–406,000 rows (exact number fill
 
 - Rows = day of week, Columns = hour (0–23)
 - YlOrRd colour scale — dark red = peak revenue hour
-- Reveals: most sales happen Tuesday–Thursday, 10am–2pm
+- Reveals: most sales happen Tuesday–Thursday, 10am–3pm
 
-**Interview insight**: "Revenue peaks on weekday mornings. Email campaigns and paid ads should be scheduled for Tuesday–Thursday 9–11am for maximum engagement."
+**Interview insight**: "Revenue peaks on weekday mid-days. Email campaigns and paid ads should be scheduled for Tuesday–Thursday 10am for maximum engagement."
 
 ---
 
@@ -148,33 +149,30 @@ RETURN DIVIDE(CurrentMonthRev - PrevMonthRev, PrevMonthRev)
 
 ---
 
-## 📊 Key Findings (fill in after running)
+## 📊 Key Findings
 
 | Metric | Value |
 |--------|-------|
-| Total Revenue | £ *(fill after run)* |
-| Total Orders | *(fill after run)* |
-| Average Order Value | £ *(fill after run)* |
-| Unique Customers | *(fill after run)* |
-| Overall Retention Rate | *%* |
-| Peak Revenue Month | *(fill after run)* |
-| Highest MoM Growth | *% in Month* |
-| Top Product | *(fill after run)* |
-| Top Country (ex-UK) | *(fill after run)* |
-| Peak Sales Hour | *(fill after run)* |
+| Total Revenue | INR 935,697,829.92 (~93.5 Cr) |
+| Total Orders | 18,532 |
+| Average Order Value | INR 50,490.92 |
+| Unique Customers | 4,338 |
+| Overall Retention Rate | 65.5% |
+| Peak Revenue Month | November 2011 |
+| Highest MoM Growth | 47.65% in Nov 2011 |
 
 ---
 
 ## 🎤 Interview Q&A Ready
 
 **Q: "Walk me through your data cleaning process"**
-> "First I identified three main data quality issues: 12% of rows had no CustomerID, which I dropped because retention analysis requires customer identity. About 2% of invoices were cancellations — prefixed with 'C' — which I filtered out to avoid negative revenue. Finally I removed ~1% of rows with zero or negative quantities and prices which were data entry errors. This reduced the dataset from ~541K to ~406K rows — about 25% removed, all justified."
+> "First I identified three main data quality issues: 12% of rows had no CustomerID, which I dropped because retention analysis requires customer identity. About 2% of invoices were cancellations — prefixed with 'C' — which I filtered out to avoid negative revenue. Finally I removed ~1% of rows with zero or negative quantities and prices which were data entry errors. This reduced the dataset from 541K to 397K rows. I also converted the GBP currency to INR (multiplier 105) to align with our local market context."
 
 **Q: "What is a window function?"**
 > "A window function performs a calculation across a set of rows related to the current row, without collapsing them into a single output row. I used `LAG()` — which accesses the previous row's value — to calculate month-over-month revenue growth. The `OVER (ORDER BY month)` clause defines the window ordering."
 
 **Q: "What surprised you most in this analysis?"**
-> *(Fill with actual finding after running — e.g., "The revenue heatmap showed zero sales on Saturdays — unusual for retail. Investigation showed this is a B2B wholesaler that primarily serves shop owners during business hours, which reframes the entire customer strategy.")*
+> "The geographic concentration was massive — the UK accounted for over 80% of revenue, but the Netherlands and EIRE generated the highest average order values outside the UK. It suggests our wholesale B2B customers are clustered in those regions."
 
 **Q: "How did you handle the SQL without a server?"**
 > "I loaded the cleaned pandas DataFrame directly into SQLite using `df.to_sql()`. SQLite is serverless and file-based, which makes it perfect for portfolio projects — no installation or credentials required. All 7 queries use standard SQL-92 syntax with two SQLite-specific adaptations: `strftime()` instead of `DATE_TRUNC()`, and manual STDDEV calculation since SQLite lacks an aggregate STDDEV function."
